@@ -54,12 +54,10 @@ public class DistrictLayout : MonoBehaviour
         GenerateDistrict();
     }
 
-    /// <summary>
-    /// Main entry point: clears old geometry and regenerates the entire district.
-    /// </summary>
     public void GenerateDistrict()
     {
         ClearGenerated();
+        GenerateGround();
         GenerateStreet();
         GenerateSidewalks();
         GenerateBuildings();
@@ -69,51 +67,76 @@ public class DistrictLayout : MonoBehaviour
         PlaceCharacters();
     }
 
-    /// <summary>
-    /// Removes all previously generated objects.
-    /// </summary>
     public void ClearGenerated()
     {
         foreach (GameObject obj in generatedObjects)
         {
             if (obj != null)
             {
-                DestroyImmediate(obj);
+                Destroy(obj);
             }
         }
         generatedObjects.Clear();
     }
 
+    private void GenerateGround()
+    {
+        GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ground.name = "Ground";
+        ground.transform.parent = transform;
+        ground.transform.localPosition = new Vector3(0f, -0.05f, streetLength * 0.5f);
+        ground.transform.localScale = new Vector3(200f, 0.1f, 200f);
+        ground.isStatic = true;
+
+        Renderer groundRenderer = ground.GetComponent<Renderer>();
+        if (groundRenderer != null)
+        {
+            groundRenderer.material.color = new Color(0.35f, 0.42f, 0.25f);
+        }
+        generatedObjects.Add(ground);
+    }
+
     private void GenerateStreet()
     {
-        // Main road surface
-        GameObject road = CreateQuad(
-            "Road",
-            new Vector3(0f, 0.01f, streetLength * 0.5f),
-            new Vector3(streetWidth, 1f, streetLength),
-            roadMaterial
-        );
+        GameObject road = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        road.name = "Road";
         road.transform.parent = transform;
+        road.transform.localPosition = new Vector3(0f, 0.01f, streetLength * 0.5f);
+        road.transform.localScale = new Vector3(streetWidth, 0.05f, streetLength);
+        road.isStatic = true;
+
+        Renderer roadRenderer = road.GetComponent<Renderer>();
+        if (roadRenderer != null)
+        {
+            if (roadMaterial != null)
+                roadRenderer.material = roadMaterial;
+            else
+                roadRenderer.material.color = new Color(0.25f, 0.25f, 0.28f);
+        }
         generatedObjects.Add(road);
 
-        // Road markings — center dashed line
+        // Dashed center line
         float dashLength = 3f;
         float dashGap = 2f;
         float z = 0f;
         while (z < streetLength)
         {
-            GameObject dash = CreateQuad(
-                "RoadDash",
-                new Vector3(0f, 0.02f, z + dashLength * 0.5f),
-                new Vector3(0.2f, 1f, dashLength),
-                null // will use white default
-            );
+            GameObject dash = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            dash.name = "RoadDash";
+            dash.transform.parent = transform;
+            dash.transform.localPosition = new Vector3(0f, 0.02f, z + dashLength * 0.5f);
+            dash.transform.localScale = new Vector3(0.2f, 0.06f, dashLength);
+            dash.isStatic = true;
+
             Renderer dashRenderer = dash.GetComponent<Renderer>();
             if (dashRenderer != null)
             {
                 dashRenderer.material.color = Color.white;
             }
-            dash.transform.parent = transform;
+
+            Collider dashCollider = dash.GetComponent<Collider>();
+            if (dashCollider != null) Destroy(dashCollider);
+
             generatedObjects.Add(dash);
             z += dashLength + dashGap;
         }
@@ -121,25 +144,29 @@ public class DistrictLayout : MonoBehaviour
 
     private void GenerateSidewalks()
     {
-        // Left sidewalk
-        GameObject leftSidewalk = CreateQuad(
-            "Sidewalk_Left",
-            new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.5f), 0.05f, streetLength * 0.5f),
-            new Vector3(sidewalkWidth, 1f, streetLength),
-            sidewalkMaterial
-        );
-        leftSidewalk.transform.parent = transform;
-        generatedObjects.Add(leftSidewalk);
+        float leftX = -(streetWidth * 0.5f + sidewalkWidth * 0.5f);
+        float rightX = streetWidth * 0.5f + sidewalkWidth * 0.5f;
 
-        // Right sidewalk
-        GameObject rightSidewalk = CreateQuad(
-            "Sidewalk_Right",
-            new Vector3(streetWidth * 0.5f + sidewalkWidth * 0.5f, 0.05f, streetLength * 0.5f),
-            new Vector3(sidewalkWidth, 1f, streetLength),
-            sidewalkMaterial
-        );
-        rightSidewalk.transform.parent = transform;
-        generatedObjects.Add(rightSidewalk);
+        for (int side = 0; side < 2; side++)
+        {
+            float x = (side == 0) ? leftX : rightX;
+            GameObject sidewalk = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            sidewalk.name = "Sidewalk_" + (side == 0 ? "Left" : "Right");
+            sidewalk.transform.parent = transform;
+            sidewalk.transform.localPosition = new Vector3(x, 0.06f, streetLength * 0.5f);
+            sidewalk.transform.localScale = new Vector3(sidewalkWidth, 0.12f, streetLength);
+            sidewalk.isStatic = true;
+
+            Renderer renderer = sidewalk.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                if (sidewalkMaterial != null)
+                    renderer.material = sidewalkMaterial;
+                else
+                    renderer.material.color = new Color(0.6f, 0.58f, 0.55f);
+            }
+            generatedObjects.Add(sidewalk);
+        }
     }
 
     private void GenerateBuildings()
@@ -153,10 +180,7 @@ public class DistrictLayout : MonoBehaviour
             float z = startZ + i * (buildingWidth + buildingSpacing) + buildingWidth * 0.5f;
             Material wallMat = (i % 2 == 0) ? panelkaWallMaterial1 : panelkaWallMaterial2;
 
-            // Left side buildings
             CreatePanelkaBuilding("Panelka_L" + i, new Vector3(leftX, 0f, z), wallMat, true);
-
-            // Right side buildings
             CreatePanelkaBuilding("Panelka_R" + i, new Vector3(rightX, 0f, z), wallMat, false);
         }
     }
@@ -174,15 +198,21 @@ public class DistrictLayout : MonoBehaviour
         body.transform.parent = building.transform;
         body.transform.localPosition = new Vector3(0f, buildingHeight * 0.5f, 0f);
         body.transform.localScale = new Vector3(buildingDepth, buildingHeight, buildingWidth);
+        body.isStatic = true;
 
         Renderer bodyRenderer = body.GetComponent<Renderer>();
-        if (bodyRenderer != null && wallMaterial != null)
+        if (bodyRenderer != null)
         {
-            bodyRenderer.material = wallMaterial;
-            // Tile the texture to show window grid pattern
-            bodyRenderer.material.mainTextureScale = new Vector2(2f, floorsPerBuilding);
+            if (wallMaterial != null)
+            {
+                bodyRenderer.material = wallMaterial;
+                bodyRenderer.material.mainTextureScale = new Vector2(2f, floorsPerBuilding);
+            }
+            else
+            {
+                bodyRenderer.material.color = new Color(0.75f, 0.72f, 0.68f);
+            }
         }
-        body.isStatic = true;
 
         // Roof
         GameObject roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -190,18 +220,19 @@ public class DistrictLayout : MonoBehaviour
         roof.transform.parent = building.transform;
         roof.transform.localPosition = new Vector3(0f, buildingHeight + 0.25f, 0f);
         roof.transform.localScale = new Vector3(buildingDepth + 0.5f, 0.5f, buildingWidth + 0.5f);
-
-        Renderer roofRenderer = roof.GetComponent<Renderer>();
-        if (roofRenderer != null && roofMaterial != null)
-        {
-            roofRenderer.material = roofMaterial;
-        }
         roof.isStatic = true;
 
-        // Window indentations — procedural detail rows
+        Renderer roofRenderer = roof.GetComponent<Renderer>();
+        if (roofRenderer != null)
+        {
+            if (roofMaterial != null)
+                roofRenderer.material = roofMaterial;
+            else
+                roofRenderer.material.color = new Color(0.4f, 0.38f, 0.35f);
+        }
+
+        // Windows
         float floorHeight = buildingHeight / floorsPerBuilding;
-        float windowWidth = 1.5f;
-        float windowHeight = 1.8f;
         int windowsPerFloor = Mathf.FloorToInt(buildingWidth / 3f);
 
         for (int floor = 0; floor < floorsPerBuilding; floor++)
@@ -210,45 +241,40 @@ public class DistrictLayout : MonoBehaviour
             {
                 float wy = (floor + 0.5f) * floorHeight + 0.5f;
                 float wz = -buildingWidth * 0.5f + (w + 0.5f) * (buildingWidth / windowsPerFloor);
-
-                // Window on the street-facing side
                 float facingX = faceRight ? buildingDepth * 0.5f + 0.01f : -buildingDepth * 0.5f - 0.01f;
+
                 GameObject window = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                window.name = name + "_Window_" + floor + "_" + w;
+                window.name = name + "_Win_" + floor + "_" + w;
                 window.transform.parent = building.transform;
                 window.transform.localPosition = new Vector3(facingX, wy, wz);
-                window.transform.localScale = new Vector3(0.1f, windowHeight, windowWidth);
+                window.transform.localScale = new Vector3(0.1f, 1.8f, 1.5f);
+                window.isStatic = true;
 
                 Renderer windowRenderer = window.GetComponent<Renderer>();
                 if (windowRenderer != null)
                 {
                     windowRenderer.material.color = new Color(0.6f, 0.75f, 0.85f, 0.8f);
                 }
-                window.isStatic = true;
 
-                // Remove collider from window decorations
                 Collider windowCollider = window.GetComponent<Collider>();
-                if (windowCollider != null)
-                {
-                    Destroy(windowCollider);
-                }
+                if (windowCollider != null) Destroy(windowCollider);
             }
         }
 
-        // Entrance — ground-floor door
+        // Entrance
         float entranceX = faceRight ? buildingDepth * 0.5f + 0.02f : -buildingDepth * 0.5f - 0.02f;
         GameObject entrance = GameObject.CreatePrimitive(PrimitiveType.Cube);
         entrance.name = name + "_Entrance";
         entrance.transform.parent = building.transform;
         entrance.transform.localPosition = new Vector3(entranceX, 1.5f, 0f);
         entrance.transform.localScale = new Vector3(0.15f, 3f, 2f);
+        entrance.isStatic = true;
 
         Renderer entranceRenderer = entrance.GetComponent<Renderer>();
         if (entranceRenderer != null)
         {
             entranceRenderer.material.color = new Color(0.3f, 0.2f, 0.15f);
         }
-        entrance.isStatic = true;
     }
 
     private void GenerateSchool()
@@ -264,19 +290,18 @@ public class DistrictLayout : MonoBehaviour
         body.transform.parent = school.transform;
         body.transform.localPosition = new Vector3(0f, schoolHeight * 0.5f, 0f);
         body.transform.localScale = new Vector3(schoolWidth, schoolHeight, schoolDepth);
-
-        Renderer bodyRenderer = body.GetComponent<Renderer>();
-        if (bodyRenderer != null && schoolMaterial != null)
-        {
-            bodyRenderer.material = schoolMaterial;
-        }
-        else if (bodyRenderer != null)
-        {
-            bodyRenderer.material.color = new Color(0.85f, 0.82f, 0.75f);
-        }
         body.isStatic = true;
 
-        // School entrance area (with trigger zone for BakhilyBarrier)
+        Renderer bodyRenderer = body.GetComponent<Renderer>();
+        if (bodyRenderer != null)
+        {
+            if (schoolMaterial != null)
+                bodyRenderer.material = schoolMaterial;
+            else
+                bodyRenderer.material.color = new Color(0.85f, 0.82f, 0.75f);
+        }
+
+        // School entrance trigger zone for BakhilyBarrier
         GameObject entranceZone = new GameObject("SchoolEntrance");
         entranceZone.transform.parent = school.transform;
         entranceZone.transform.localPosition = new Vector3(0f, 1.5f, -schoolDepth * 0.5f - 1f);
@@ -285,22 +310,21 @@ public class DistrictLayout : MonoBehaviour
         triggerCollider.size = new Vector3(4f, 3f, 2f);
         triggerCollider.isTrigger = true;
 
-        // Add the BakhilyBarrier script
         entranceZone.AddComponent<BakhilyBarrier>();
 
-        // Entrance door visual
+        // School door
         GameObject door = GameObject.CreatePrimitive(PrimitiveType.Cube);
         door.name = "School_Door";
         door.transform.parent = school.transform;
         door.transform.localPosition = new Vector3(0f, 1.5f, -schoolDepth * 0.5f - 0.01f);
         door.transform.localScale = new Vector3(3f, 3f, 0.2f);
+        door.isStatic = true;
 
         Renderer doorRenderer = door.GetComponent<Renderer>();
         if (doorRenderer != null)
         {
             doorRenderer.material.color = new Color(0.4f, 0.25f, 0.15f);
         }
-        door.isStatic = true;
 
         // School sign
         GameObject sign = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -308,13 +332,13 @@ public class DistrictLayout : MonoBehaviour
         sign.transform.parent = school.transform;
         sign.transform.localPosition = new Vector3(0f, schoolHeight - 1f, -schoolDepth * 0.5f - 0.1f);
         sign.transform.localScale = new Vector3(8f, 1.5f, 0.1f);
+        sign.isStatic = true;
 
         Renderer signRenderer = sign.GetComponent<Renderer>();
         if (signRenderer != null)
         {
             signRenderer.material.color = new Color(0.2f, 0.4f, 0.7f);
         }
-        sign.isStatic = true;
     }
 
     private void GenerateBenches()
@@ -326,7 +350,7 @@ public class DistrictLayout : MonoBehaviour
         {
             float z = (i + 1) * (streetLength / (benchCount + 1));
             float x = (i % 2 == 0) ? sidewalkCenterLeft : sidewalkCenterRight;
-            CreateBench("Bench_" + i, new Vector3(x, 0.05f, z));
+            CreateBench("Bench_" + i, new Vector3(x, 0.12f, z));
         }
     }
 
@@ -343,17 +367,14 @@ public class DistrictLayout : MonoBehaviour
         seat.transform.parent = bench.transform;
         seat.transform.localPosition = new Vector3(0f, 0.45f, 0f);
         seat.transform.localScale = new Vector3(1.8f, 0.08f, 0.5f);
+        seat.isStatic = true;
 
         Renderer seatRenderer = seat.GetComponent<Renderer>();
-        if (seatRenderer != null && benchMaterial != null)
+        if (seatRenderer != null)
         {
-            seatRenderer.material = benchMaterial;
+            if (benchMaterial != null) seatRenderer.material = benchMaterial;
+            else seatRenderer.material.color = new Color(0.45f, 0.3f, 0.15f);
         }
-        else if (seatRenderer != null)
-        {
-            seatRenderer.material.color = new Color(0.45f, 0.3f, 0.15f);
-        }
-        seat.isStatic = true;
 
         // Backrest
         GameObject backrest = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -361,19 +382,16 @@ public class DistrictLayout : MonoBehaviour
         backrest.transform.parent = bench.transform;
         backrest.transform.localPosition = new Vector3(0f, 0.7f, -0.2f);
         backrest.transform.localScale = new Vector3(1.8f, 0.5f, 0.06f);
-
-        Renderer backRenderer = backrest.GetComponent<Renderer>();
-        if (backRenderer != null && benchMaterial != null)
-        {
-            backRenderer.material = benchMaterial;
-        }
-        else if (backRenderer != null)
-        {
-            backRenderer.material.color = new Color(0.45f, 0.3f, 0.15f);
-        }
         backrest.isStatic = true;
 
-        // Legs (4 legs)
+        Renderer backRenderer = backrest.GetComponent<Renderer>();
+        if (backRenderer != null)
+        {
+            if (benchMaterial != null) backRenderer.material = benchMaterial;
+            else backRenderer.material.color = new Color(0.45f, 0.3f, 0.15f);
+        }
+
+        // Legs
         Vector3[] legPositions = new Vector3[]
         {
             new Vector3(-0.75f, 0.22f, 0.15f),
@@ -389,26 +407,23 @@ public class DistrictLayout : MonoBehaviour
             leg.transform.parent = bench.transform;
             leg.transform.localPosition = legPositions[i];
             leg.transform.localScale = new Vector3(0.06f, 0.44f, 0.06f);
+            leg.isStatic = true;
 
             Renderer legRenderer = leg.GetComponent<Renderer>();
-            if (legRenderer != null)
-            {
-                legRenderer.material.color = new Color(0.2f, 0.2f, 0.2f);
-            }
-            leg.isStatic = true;
+            if (legRenderer != null) legRenderer.material.color = new Color(0.2f, 0.2f, 0.2f);
         }
     }
 
     private void GenerateTrashBins()
     {
-        float sidewalkEdgeLeft = -(streetWidth * 0.5f + sidewalkWidth * 0.75f);
-        float sidewalkEdgeRight = streetWidth * 0.5f + sidewalkWidth * 0.75f;
+        float edgeLeft = -(streetWidth * 0.5f + sidewalkWidth * 0.75f);
+        float edgeRight = streetWidth * 0.5f + sidewalkWidth * 0.75f;
 
         for (int i = 0; i < trashBinCount; i++)
         {
             float z = (i + 0.5f) * (streetLength / trashBinCount);
-            float x = (i % 2 == 0) ? sidewalkEdgeLeft : sidewalkEdgeRight;
-            CreateTrashBin("TrashBin_" + i, new Vector3(x, 0.05f, z));
+            float x = (i % 2 == 0) ? edgeLeft : edgeRight;
+            CreateTrashBin("TrashBin_" + i, new Vector3(x, 0.12f, z));
         }
     }
 
@@ -419,111 +434,89 @@ public class DistrictLayout : MonoBehaviour
         bin.transform.position = position;
         generatedObjects.Add(bin);
 
-        // Body — cylinder
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         body.name = name + "_Body";
         body.transform.parent = bin.transform;
         body.transform.localPosition = new Vector3(0f, 0.4f, 0f);
         body.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
-
-        Renderer bodyRenderer = body.GetComponent<Renderer>();
-        if (bodyRenderer != null && trashBinMaterial != null)
-        {
-            bodyRenderer.material = trashBinMaterial;
-        }
-        else if (bodyRenderer != null)
-        {
-            bodyRenderer.material.color = new Color(0.3f, 0.35f, 0.3f);
-        }
         body.isStatic = true;
 
-        // Post
+        Renderer bodyRenderer = body.GetComponent<Renderer>();
+        if (bodyRenderer != null)
+        {
+            if (trashBinMaterial != null) bodyRenderer.material = trashBinMaterial;
+            else bodyRenderer.material.color = new Color(0.3f, 0.35f, 0.3f);
+        }
+
         GameObject post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         post.name = name + "_Post";
         post.transform.parent = bin.transform;
-        post.transform.localPosition = new Vector3(0f, 0.3f, 0f);
-        post.transform.localScale = new Vector3(0.06f, 0.3f, 0.06f);
+        post.transform.localPosition = new Vector3(0f, 0.15f, 0f);
+        post.transform.localScale = new Vector3(0.06f, 0.15f, 0.06f);
+        post.isStatic = true;
 
         Renderer postRenderer = post.GetComponent<Renderer>();
-        if (postRenderer != null)
-        {
-            postRenderer.material.color = new Color(0.25f, 0.25f, 0.25f);
-        }
-        post.isStatic = true;
+        if (postRenderer != null) postRenderer.material.color = new Color(0.25f, 0.25f, 0.25f);
     }
 
     private void PlaceCharacters()
     {
-        // Vitaliy — at a laptop, sitting on a bench near the middle of the street
+        float leftSidewalk = -(streetWidth * 0.5f + sidewalkWidth * 0.5f);
+        float rightSidewalk = streetWidth * 0.5f + sidewalkWidth * 0.5f;
+
+        // Vitaliy at a laptop, sitting near a bench
         if (vitaliyPrefab != null)
         {
-            Vector3 vitaliyPos = new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.5f), 0.05f, streetLength * 0.4f);
-            GameObject vitaliy = Instantiate(vitaliyPrefab, vitaliyPos, Quaternion.identity, transform);
+            GameObject vitaliy = Instantiate(vitaliyPrefab, new Vector3(leftSidewalk, 0.12f, streetLength * 0.4f), Quaternion.identity, transform);
             vitaliy.name = "Vitaliy";
             generatedObjects.Add(vitaliy);
         }
         else
         {
-            CreatePlaceholderCharacter("Vitaliy",
-                new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.5f), 0.05f, streetLength * 0.4f),
-                new Color(0.3f, 0.5f, 0.7f));
-            CreateLaptop(new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.5f) + 0.5f, 0.5f, streetLength * 0.4f));
+            CreatePlaceholderCharacter("Vitaliy", new Vector3(leftSidewalk, 0.12f, streetLength * 0.4f), new Color(0.3f, 0.5f, 0.7f));
+            CreateLaptop(new Vector3(leftSidewalk + 0.5f, 0.55f, streetLength * 0.4f));
         }
 
-        // Kirill — near camera equipment, on the right sidewalk
+        // Kirill near camera equipment
         if (kirillPrefab != null)
         {
-            Vector3 kirillPos = new Vector3(streetWidth * 0.5f + sidewalkWidth * 0.5f, 0.05f, streetLength * 0.35f);
-            GameObject kirill = Instantiate(kirillPrefab, kirillPos, Quaternion.identity, transform);
+            GameObject kirill = Instantiate(kirillPrefab, new Vector3(rightSidewalk, 0.12f, streetLength * 0.35f), Quaternion.identity, transform);
             kirill.name = "Kirill";
             generatedObjects.Add(kirill);
         }
         else
         {
-            CreatePlaceholderCharacter("Kirill",
-                new Vector3(streetWidth * 0.5f + sidewalkWidth * 0.5f, 0.05f, streetLength * 0.35f),
-                new Color(0.6f, 0.4f, 0.3f));
-            CreateCameraEquipment(new Vector3(streetWidth * 0.5f + sidewalkWidth * 0.5f + 0.8f, 0.05f, streetLength * 0.35f));
+            CreatePlaceholderCharacter("Kirill", new Vector3(rightSidewalk, 0.12f, streetLength * 0.35f), new Color(0.6f, 0.4f, 0.3f));
+            CreateCameraEquipment(new Vector3(rightSidewalk + 0.8f, 0.12f, streetLength * 0.35f));
         }
 
-        // Uliana — with a suitcase, on the left sidewalk further down
+        // Uliana with a suitcase
         if (ulianaPrefab != null)
         {
-            Vector3 ulianaPos = new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.3f), 0.05f, streetLength * 0.6f);
-            GameObject uliana = Instantiate(ulianaPrefab, ulianaPos, Quaternion.identity, transform);
+            GameObject uliana = Instantiate(ulianaPrefab, new Vector3(leftSidewalk + 0.5f, 0.12f, streetLength * 0.6f), Quaternion.identity, transform);
             uliana.name = "Uliana";
             generatedObjects.Add(uliana);
         }
         else
         {
-            CreatePlaceholderCharacter("Uliana",
-                new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.3f), 0.05f, streetLength * 0.6f),
-                new Color(0.8f, 0.5f, 0.6f));
-            CreateSuitcase(new Vector3(-(streetWidth * 0.5f + sidewalkWidth * 0.3f) + 0.6f, 0.05f, streetLength * 0.6f));
+            CreatePlaceholderCharacter("Uliana", new Vector3(leftSidewalk + 0.5f, 0.12f, streetLength * 0.6f), new Color(0.8f, 0.5f, 0.6f));
+            CreateSuitcase(new Vector3(leftSidewalk + 1.1f, 0.12f, streetLength * 0.6f));
         }
 
-        // Zavkhoz — blocking the school entrance
+        // Zavkhoz blocking the school entrance
+        Vector3 zavkhozPos = schoolPosition + new Vector3(0f, 0.12f, -schoolDepth * 0.5f - 1.5f);
         if (zavkhozPrefab != null)
         {
-            Vector3 zavkhozPos = schoolPosition + new Vector3(0f, 0.05f, -schoolDepth * 0.5f - 1.5f);
             GameObject zavkhoz = Instantiate(zavkhozPrefab, zavkhozPos, Quaternion.identity, transform);
             zavkhoz.name = "Zavkhoz";
             generatedObjects.Add(zavkhoz);
         }
         else
         {
-            GameObject zavkhoz = CreatePlaceholderCharacter("Zavkhoz",
-                schoolPosition + new Vector3(0f, 0.05f, -schoolDepth * 0.5f - 1.5f),
-                new Color(0.3f, 0.4f, 0.7f)); // Blue robe color
-            // Tag zavkhoz for the BakhilyBarrier to find
+            GameObject zavkhoz = CreatePlaceholderCharacter("Zavkhoz", zavkhozPos, new Color(0.3f, 0.4f, 0.7f));
             zavkhoz.tag = "NPC";
-
-            // Add Animator for the stop animation placeholder
-            Animator animator = zavkhoz.GetComponent<Animator>();
-            if (animator == null)
-            {
+            if (zavkhoz.GetComponent<Animator>() == null)
                 zavkhoz.AddComponent<Animator>();
-            }
         }
     }
 
@@ -534,18 +527,13 @@ public class DistrictLayout : MonoBehaviour
         character.transform.position = position;
         generatedObjects.Add(character);
 
-        // Body (torso)
+        // Torso
         GameObject torso = GameObject.CreatePrimitive(PrimitiveType.Cube);
         torso.name = name + "_Torso";
         torso.transform.parent = character.transform;
         torso.transform.localPosition = new Vector3(0f, 1.1f, 0f);
         torso.transform.localScale = new Vector3(0.5f, 0.7f, 0.3f);
-
-        Renderer torsoRenderer = torso.GetComponent<Renderer>();
-        if (torsoRenderer != null)
-        {
-            torsoRenderer.material.color = clothingColor;
-        }
+        SetColor(torso, clothingColor);
 
         // Head
         GameObject head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -553,12 +541,7 @@ public class DistrictLayout : MonoBehaviour
         head.transform.parent = character.transform;
         head.transform.localPosition = new Vector3(0f, 1.7f, 0f);
         head.transform.localScale = new Vector3(0.3f, 0.3f, 0.3f);
-
-        Renderer headRenderer = head.GetComponent<Renderer>();
-        if (headRenderer != null)
-        {
-            headRenderer.material.color = new Color(0.9f, 0.75f, 0.65f);
-        }
+        SetColor(head, new Color(0.9f, 0.75f, 0.65f));
 
         // Legs
         for (int i = 0; i < 2; i++)
@@ -568,12 +551,7 @@ public class DistrictLayout : MonoBehaviour
             leg.transform.parent = character.transform;
             leg.transform.localPosition = new Vector3((i == 0) ? -0.12f : 0.12f, 0.4f, 0f);
             leg.transform.localScale = new Vector3(0.18f, 0.7f, 0.22f);
-
-            Renderer legRenderer = leg.GetComponent<Renderer>();
-            if (legRenderer != null)
-            {
-                legRenderer.material.color = new Color(0.2f, 0.2f, 0.3f);
-            }
+            SetColor(leg, new Color(0.2f, 0.2f, 0.3f));
         }
 
         // Arms
@@ -584,21 +562,24 @@ public class DistrictLayout : MonoBehaviour
             arm.transform.parent = character.transform;
             arm.transform.localPosition = new Vector3((i == 0) ? -0.35f : 0.35f, 1.1f, 0f);
             arm.transform.localScale = new Vector3(0.15f, 0.6f, 0.18f);
-
-            Renderer armRenderer = arm.GetComponent<Renderer>();
-            if (armRenderer != null)
-            {
-                armRenderer.material.color = clothingColor;
-            }
+            SetColor(arm, clothingColor);
         }
 
-        // Add a capsule collider for physics interaction
         CapsuleCollider capsule = character.AddComponent<CapsuleCollider>();
         capsule.center = new Vector3(0f, 1f, 0f);
         capsule.height = 2f;
         capsule.radius = 0.3f;
 
         return character;
+    }
+
+    private void SetColor(GameObject obj, Color color)
+    {
+        Renderer renderer = obj.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            renderer.material.color = color;
+        }
     }
 
     private void CreateLaptop(Vector3 position)
@@ -608,33 +589,20 @@ public class DistrictLayout : MonoBehaviour
         laptop.transform.position = position;
         generatedObjects.Add(laptop);
 
-        // Base
         GameObject laptopBase = GameObject.CreatePrimitive(PrimitiveType.Cube);
         laptopBase.name = "Laptop_Base";
         laptopBase.transform.parent = laptop.transform;
         laptopBase.transform.localPosition = Vector3.zero;
         laptopBase.transform.localScale = new Vector3(0.35f, 0.02f, 0.25f);
+        SetColor(laptopBase, new Color(0.15f, 0.15f, 0.15f));
 
-        Renderer baseRenderer = laptopBase.GetComponent<Renderer>();
-        if (baseRenderer != null)
-        {
-            baseRenderer.material.color = new Color(0.15f, 0.15f, 0.15f);
-        }
-
-        // Screen
         GameObject screen = GameObject.CreatePrimitive(PrimitiveType.Cube);
         screen.name = "Laptop_Screen";
         screen.transform.parent = laptop.transform;
         screen.transform.localPosition = new Vector3(0f, 0.12f, -0.11f);
         screen.transform.localRotation = Quaternion.Euler(-70f, 0f, 0f);
         screen.transform.localScale = new Vector3(0.33f, 0.22f, 0.01f);
-
-        Renderer screenRenderer = screen.GetComponent<Renderer>();
-        if (screenRenderer != null)
-        {
-            screenRenderer.material.color = new Color(0.4f, 0.6f, 0.9f);
-            screenRenderer.material.SetColor("_EmissionColor", new Color(0.2f, 0.3f, 0.5f));
-        }
+        SetColor(screen, new Color(0.4f, 0.6f, 0.9f));
     }
 
     private void CreateCameraEquipment(Vector3 position)
@@ -644,7 +612,6 @@ public class DistrictLayout : MonoBehaviour
         equipment.transform.position = position;
         generatedObjects.Add(equipment);
 
-        // Tripod legs
         for (int i = 0; i < 3; i++)
         {
             GameObject leg = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -654,40 +621,23 @@ public class DistrictLayout : MonoBehaviour
             leg.transform.localPosition = new Vector3(Mathf.Sin(angle) * 0.2f, 0.5f, Mathf.Cos(angle) * 0.2f);
             leg.transform.localRotation = Quaternion.Euler(Mathf.Cos(angle) * 15f, 0f, Mathf.Sin(angle) * 15f);
             leg.transform.localScale = new Vector3(0.03f, 0.5f, 0.03f);
-
-            Renderer legRenderer = leg.GetComponent<Renderer>();
-            if (legRenderer != null)
-            {
-                legRenderer.material.color = new Color(0.15f, 0.15f, 0.15f);
-            }
+            SetColor(leg, new Color(0.15f, 0.15f, 0.15f));
         }
 
-        // Camera body
         GameObject cameraBody = GameObject.CreatePrimitive(PrimitiveType.Cube);
         cameraBody.name = "Camera_Body";
         cameraBody.transform.parent = equipment.transform;
         cameraBody.transform.localPosition = new Vector3(0f, 1.1f, 0f);
         cameraBody.transform.localScale = new Vector3(0.2f, 0.12f, 0.15f);
+        SetColor(cameraBody, new Color(0.1f, 0.1f, 0.1f));
 
-        Renderer camRenderer = cameraBody.GetComponent<Renderer>();
-        if (camRenderer != null)
-        {
-            camRenderer.material.color = new Color(0.1f, 0.1f, 0.1f);
-        }
-
-        // Camera lens
         GameObject lens = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         lens.name = "Camera_Lens";
         lens.transform.parent = equipment.transform;
         lens.transform.localPosition = new Vector3(0f, 1.1f, -0.12f);
         lens.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         lens.transform.localScale = new Vector3(0.06f, 0.08f, 0.06f);
-
-        Renderer lensRenderer = lens.GetComponent<Renderer>();
-        if (lensRenderer != null)
-        {
-            lensRenderer.material.color = new Color(0.05f, 0.05f, 0.05f);
-        }
+        SetColor(lens, new Color(0.05f, 0.05f, 0.05f));
     }
 
     private void CreateSuitcase(Vector3 position)
@@ -697,46 +647,14 @@ public class DistrictLayout : MonoBehaviour
         suitcase.transform.parent = transform;
         suitcase.transform.position = position;
         suitcase.transform.localScale = new Vector3(0.45f, 0.6f, 0.2f);
-
-        Renderer renderer = suitcase.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            renderer.material.color = new Color(0.5f, 0.15f, 0.15f);
-        }
+        SetColor(suitcase, new Color(0.5f, 0.15f, 0.15f));
         generatedObjects.Add(suitcase);
 
-        // Handle
         GameObject handle = GameObject.CreatePrimitive(PrimitiveType.Cube);
         handle.name = "Suitcase_Handle";
         handle.transform.parent = suitcase.transform;
         handle.transform.localPosition = new Vector3(0f, 0.55f, 0f);
         handle.transform.localScale = new Vector3(0.4f, 0.08f, 0.5f);
-
-        Renderer handleRenderer = handle.GetComponent<Renderer>();
-        if (handleRenderer != null)
-        {
-            handleRenderer.material.color = new Color(0.3f, 0.1f, 0.1f);
-        }
-    }
-
-    private GameObject CreateQuad(string name, Vector3 position, Vector3 scale, Material material)
-    {
-        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        quad.name = name;
-        quad.transform.position = position;
-        quad.transform.localScale = new Vector3(scale.x, 0.05f, scale.z);
-
-        Renderer renderer = quad.GetComponent<Renderer>();
-        if (renderer != null && material != null)
-        {
-            renderer.material = material;
-        }
-        else if (renderer != null)
-        {
-            renderer.material.color = new Color(0.3f, 0.3f, 0.35f);
-        }
-        quad.isStatic = true;
-
-        return quad;
+        SetColor(handle, new Color(0.3f, 0.1f, 0.1f));
     }
 }

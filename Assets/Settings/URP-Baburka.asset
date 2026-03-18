@@ -10,12 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: bf2edee5c58d82540a51f03df9d42094, type: 3}
-  m_Name: URPAsset_Optimized
+  m_Name: URP-Baburka
   m_EditorClassIdentifier:
-  k_AssetVersion: 11
+  k_AssetVersion: 12
   m_RendererType: 1
-  m_RendererData: {fileID: 0}
-  m_RendererDataList: []
+  m_RendererData: {fileID: 11400000, guid: a89d0048db284bd8877ba2c808711752, type: 2}
+  m_RendererDataList:
+  - {fileID: 11400000, guid: a89d0048db284bd8877ba2c808711752, type: 2}
   m_DefaultRendererIndex: 0
   m_RequireDepthTexture: 0
   m_RequireOpaqueTexture: 0
